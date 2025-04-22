@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>recepies</title>
+    <link rel="stylesheet" href="{{stylesheet}}">
+  </head>
+  <body>
+  <h1>Recipes</h1>
+  <div class="joke">
+      <span class="recipe-title">{{recipe.title}}</span>
+      <ul>
+          {% for ingredient in recipe.ingredients %}
+            <li class="recipe-ingredient">{{ ingredient }}</li>
+          {% endfor %}
+      </ul>
+  </div>
+  </body>
+</html>

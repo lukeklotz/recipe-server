@@ -2,7 +2,13 @@
 //"i" is used used to fetch random recipe
 //limit between 0 - 29
 
-use sqlx::{migrate::MigrateDatabase, sqlite::SqliteQueryResult, Sqlite, SqlitePool};
+use sqlx::{
+    migrate::MigrateDatabase, 
+    sqlite::SqliteQueryResult, 
+    Sqlite, 
+    SqlitePool,
+    Row,
+};
 
 use serde::Deserialize;
 
@@ -38,7 +44,7 @@ pub async fn create_db() -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-pub async fn create_tables(db: &SqlitePool) -> Result<(), sqlx::Error> {
+pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     // Create recipes table
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS recipes (
@@ -46,7 +52,7 @@ pub async fn create_tables(db: &SqlitePool) -> Result<(), sqlx::Error> {
             name VARCHAR(250) NOT NULL
         );"
     )
-    .execute(db)
+    .execute(pool)
     .await?;
 
     // Create ingredients table
@@ -55,32 +61,44 @@ pub async fn create_tables(db: &SqlitePool) -> Result<(), sqlx::Error> {
             id INTEGER PRIMARY KEY NOT NULL,
             recipe_id INTEGER NOT NULL,
             name VARCHAR(250) NOT NULL,
-            quantity VARCHAR(100),
             FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
         );"
     )
-    .execute(db)
+    .execute(pool)
     .await?;
 
     Ok(())
 }
 
-pub async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<SqliteQueryResult, sqlx::Error> {
-    let result = sqlx::query("INSERT INTO recipes (name) VALUES (?)")
-        .bind(&recipe.title)
-        .execute(pool)
-        .await?;
+pub async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::Error> {
+    
+    // Start a transaction to ensure consistency
+    let mut tx = pool.begin().await?;
 
-    println!("Inserted recipe: {:?}", result);
-    Ok(result)
+    // Insert into recipes table and get the ID
+    let recipe_id: i64 = sqlx::query(
+        "INSERT INTO recipes (name) VALUES (?) RETURNING id;"
+    )
+    .bind(&recipe.title)
+    .fetch_one(&mut *tx)
+    .await?
+    .get("id");
+
+    // Insert each ingredient
+    for ingredient in &recipe.ingredients {
+        sqlx::query(
+            "INSERT INTO ingredients (recipe_id, name) VALUES (?, ?);"
+        )
+        .bind(recipe_id)
+        .bind(ingredient)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    // Commit the transaction
+    tx.commit().await?;
+
+    Ok(())
 }
 
 
-// fn loadRecipe() {
-// recipe = jsonFile[randomIndex]
-// let recipe = Recipe {
-//      title: recipe.title
-//      ingredients: append recipe ingredients somehow.. ?
-//  }
-//}
-// recipe

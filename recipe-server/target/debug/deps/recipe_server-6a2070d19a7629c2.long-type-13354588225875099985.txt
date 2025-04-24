@@ -1,0 +1,2 @@
+for<'a> fn(&'a Connection) -> impl Future<Output = axum::response::Html<std::string::String>> {render_recipe_page}
+for<'a> fn(&'a Connection) -> impl Future<Output = axum::response::Html<std::string::String>> {render_recipe_page}: Handler<_, _>

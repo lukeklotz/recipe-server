@@ -13,8 +13,6 @@ use axum::{
     Router,
 };
 
-
-
 async fn render_recipe_page() -> Html<String> {
     let recipe = recipe::get_recipe();
     let template = IndexTemplate::recipe(&recipe);
@@ -29,6 +27,8 @@ async fn main() -> Result<(), sqlx::Error>{
 
     // Create a connection pool
     let pool = SqlitePool::connect(recipe::DB_URL).await?;
+
+    create_tables(&pool).await?;
 
     let recipe = recipe::get_recipe(); //returns hard coded recipe struct fields
     recipe::insert_recipe(&pool, &recipe).await?;

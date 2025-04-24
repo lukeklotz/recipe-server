@@ -23,7 +23,7 @@ pub fn get_recipe() -> Recipe {
     recipe
 }
 
-pub async fn create_db() -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> {
+pub async fn create_db() -> Result<(), sqlx::Error> {
 
     if !Sqlite::database_exists(DB_URL).await.unwrap_or(false) {
         println!("Creating database {}", DB_URL);
@@ -35,18 +35,34 @@ pub async fn create_db() -> Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>
         println!("Database already exists");
     }
 
-    let db = SqlitePool::connect(DB_URL).await.unwrap();
+    Ok(())
+}
 
-    //create recipes
-    let result = sqlx::query("CREATE TABLE IF NOT EXISTS recipes 
-                                            (id INTEGER PRIMARY KEY NOT NULL, 
-                                            name VARCHAR(250) NOT NULL);")
-                                            .execute(&db)
-                                            .await
-                                            .unwrap();
-    println!("Create user table result: {:?}", result);
+pub async fn create_tables(db: &SqlitePool) -> Result<(), sqlx::Error> {
+    // Create recipes table
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS recipes (
+            id INTEGER PRIMARY KEY NOT NULL,
+            name VARCHAR(250) NOT NULL
+        );"
+    )
+    .execute(db)
+    .await?;
 
-    Ok(result)
+    // Create ingredients table
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS ingredients (
+            id INTEGER PRIMARY KEY NOT NULL,
+            recipe_id INTEGER NOT NULL,
+            name VARCHAR(250) NOT NULL,
+            quantity VARCHAR(100),
+            FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+        );"
+    )
+    .execute(db)
+    .await?;
+
+    Ok(())
 }
 
 pub async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<SqliteQueryResult, sqlx::Error> {

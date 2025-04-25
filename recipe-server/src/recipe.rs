@@ -10,6 +10,9 @@ use sqlx::{
     Row,
 };
 
+
+use rand::prelude::IndexedRandom;
+use std::fs;
 use serde::Deserialize;
 
 pub const DB_URL: &str = "sqlite://sqlite.db";
@@ -20,13 +23,18 @@ pub struct Recipe {
     pub ingredients: Vec<String>,
 }
 
-pub fn get_recipe() -> Recipe {
-    let recipe = Recipe {
-        title: "PB-n-J".to_string(),
-        ingredients: vec!["Bread".into(), "Peanut Butter".into(), "Jelly".into()]
-    };
-    
-    recipe
+
+// parses json into a vector of Recipe structs
+pub fn get_recipe() -> Vec<Recipe> {
+
+    // Read the JSON file
+    let json = fs::read_to_string("recipes.json").expect("Failed to read recipes.json");
+
+    // Parse JSON into a Vec<Recipe>
+    let recipes: Vec<Recipe> =
+        serde_json::from_str(&json).expect("Failed to parse JSON");
+
+    recipes
 }
 
 pub async fn create_db() -> Result<(), sqlx::Error> {
@@ -69,6 +77,8 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
     Ok(())
 }
+
+
 
 pub async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::Error> {
     

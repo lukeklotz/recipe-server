@@ -13,7 +13,12 @@ use axum::{
     Router,
 };
 
+
+//TODO: render HTML from database instead of directly from struct
 async fn render_recipe_page() -> Html<String> {
+
+    //build recipe struct from db query
+
     let recipe = recipe::get_recipe();
     let template = IndexTemplate::recipe(&recipe);
 

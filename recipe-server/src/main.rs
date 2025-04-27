@@ -15,15 +15,14 @@ use axum::{
 
 
 //TODO: render HTML from database instead of directly from struct
+
+/* 
 async fn render_recipe_page() -> Html<String> {
 
     //build recipe struct from db query
 
-    let recipe = recipe::get_recipe();
-    let template = IndexTemplate::recipe(&recipe);
-
-    Html(template.render().unwrap())
 }
+*/
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error>{
@@ -35,12 +34,15 @@ async fn main() -> Result<(), sqlx::Error>{
 
     create_tables(&pool).await?;
 
-    let recipe = recipe::get_recipe(); //returns hard coded recipe struct fields
-    recipe::insert_recipe(&pool, &recipe).await?;
+    let recipe = recipe::get_recipe(); 
+    recipe::insert(&pool, &recipe).await?;
+   
+    //TODO: Query DB
+    //TODO: Render recipe page
 
 
     let app = Router::new()
-                    .route("/", get(render_recipe_page))
+                    .route("/", get("replace me with render recipe page"))
                     .route("/other", get(|| async { "other, world!" }));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

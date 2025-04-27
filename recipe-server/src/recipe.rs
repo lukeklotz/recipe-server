@@ -17,7 +17,7 @@ use serde::Deserialize;
 
 pub const DB_URL: &str = "sqlite://sqlite.db";
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct Recipe {
     pub title: String,
     pub ingredients: Vec<String>,
@@ -27,12 +27,28 @@ pub struct Recipe {
 // parses json into a vector of Recipe structs
 pub fn get_recipe() -> Vec<Recipe> {
 
-    // Read the JSON file
-    let json = fs::read_to_string("recipes.json").expect("Failed to read recipes.json");
+    let path = "recipes.json";
 
-    // Parse JSON into a Vec<Recipe>
-    let recipes: Vec<Recipe> =
-        serde_json::from_str(&json).expect("Failed to parse JSON");
+    println!("Trying to read: {:?}", path);
+
+    let json = match fs::read_to_string(path) {
+        Ok(json_to_parse) => {
+            println!("Successfully read recipes.json! Content length: {}", json_to_parse.len());
+            json_to_parse
+        }
+        Err(e) => {
+            println!("Failed to read recipes.json: {:#?}", e);
+            return vec![];
+        }
+    };
+
+    let recipes: Vec<Recipe> = match serde_json::from_str(&json) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("Failed to parse JSON: {:#?}", e);
+            return vec![];
+        }
+    };
 
     recipes
 }
@@ -78,9 +94,19 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+pub async fn insert(pool: &SqlitePool, recipes: &Vec<Recipe>) -> Result<(), sqlx::Error> {
+
+    println!("Inserting recipes...");
+
+    for recipe in recipes {
+        println!("Inserting recipe: {:?}", recipe.title);
+        insert_recipe(pool, recipe).await?;
+    }
+    Ok(())
+}
 
 
-pub async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::Error> {
+async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::Error> {
     
     // Start a transaction to ensure consistency
     let mut tx = pool.begin().await?;

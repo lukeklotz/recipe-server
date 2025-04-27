@@ -1,0 +1,66 @@
+[
+    {
+        "title": "Spaghetti Carbonara",
+        "ingredients": [
+            "Spaghetti",
+            "Eggs",
+            "Pancetta",
+            "Parmesan Cheese",
+            "Black Pepper",
+            "Salt"
+        ]
+    },
+    {
+        "title": "Chocolate Chip Cookies",
+        "ingredients": [
+            "All-Purpose Flour",
+            "Butter",
+            "Brown Sugar",
+            "Granulated Sugar",
+            "Eggs",
+            "Chocolate Chips",
+            "Baking Soda",
+            "Vanilla Extract",
+            "Salt"
+        ]
+    },
+    {
+        "title": "Vegetable Stir-Fry",
+        "ingredients": [
+            "Broccoli",
+            "Carrots",
+            "Bell Peppers",
+            "Soy Sauce",
+            "Garlic",
+            "Ginger",
+            "Sesame Oil",
+            "Rice"
+        ]
+    },
+    {
+        "title": "Classic Caesar Salad",
+        "ingredients": [
+            "Romaine Lettuce",
+            "Croutons",
+            "Parmesan Cheese",
+            "Caesar Dressing",
+            "Lemon Juice",
+            "Garlic",
+            "Olive Oil",
+            "Black Pepper"
+        ]
+    },
+    {
+        "title": "Banana Bread",
+        "ingredients": [
+            "Ripe Bananas",
+            "All-Purpose Flour",
+            "Sugar",
+            "Butter",
+            "Eggs",
+            "Baking Soda",
+            "Salt",
+            "Vanilla Extract"
+        ]
+    }
+]

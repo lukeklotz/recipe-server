@@ -10,7 +10,7 @@ use sqlx::{
     Row,
 };
 
-
+use std::io::Error;
 use rand::prelude::IndexedRandom;
 use std::fs;
 use serde::Deserialize;
@@ -19,6 +19,7 @@ pub const DB_URL: &str = "sqlite://sqlite.db";
 
 #[derive(Deserialize, Debug)]
 pub struct Recipe {
+    pub id: i64,
     pub title: String,
     pub ingredients: Vec<String>,
 }
@@ -96,7 +97,7 @@ pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
 pub async fn insert(pool: &SqlitePool, recipes: &Vec<Recipe>) -> Result<(), sqlx::Error> {
 
-    println!("Inserting recipes...");
+    println!("Inserting recipes into db...");
 
     for recipe in recipes {
         println!("Inserting recipe: {:?}", recipe.title);
@@ -137,4 +138,15 @@ async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::E
     Ok(())
 }
 
+pub async fn query_recipe(pool: &SqlitePool) -> Result<String, sqlx::Error> {
+    // Query one random recipe
+    let row = sqlx::query("SELECT name FROM recipes ORDER BY RANDOM() LIMIT 1")
+        .fetch_one(pool)
+        .await?;
+
+    // Extract the 'name' field from the row
+    let recipe_name: String = row.get("name");
+
+    Ok(recipe_name)
+}
 

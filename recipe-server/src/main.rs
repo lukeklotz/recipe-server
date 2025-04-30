@@ -20,18 +20,7 @@ use axum::{
 
 async fn render_recipe_page(pool: SqlitePool) -> response::Html<String> {
 
-    let title = query_recipe(&pool).await.unwrap();
-
-    let ingredients = vec!["random".to_string(), "ingredients".to_string()];
-
-    //build recipe struct from db query
-    //query one random entry from db and return it as an HTML thing
-    let recipe = &Recipe {
-        id: 123,
-        title,
-        ingredients,
-    };
-
+    let recipe = query_random_recipe(&pool).await.unwrap();
     let template = IndexTemplate::recipe(&recipe);
 
     Html(template.render().unwrap())
@@ -46,17 +35,11 @@ async fn main() -> Result<(), sqlx::Error>{
     // Create a connection pool
     let pool = SqlitePool::connect(recipe::DB_URL).await?;
 
-    create_tables(&pool).await?;
+    recipe::create_tables(&pool).await?;
 
     let recipe = recipe::get_recipe(); 
     recipe::insert(&pool, &recipe).await?;
    
-    let recipe_name = recipe::query_recipe(&pool).await?;
-
-    println!("recipe name from db: {}", recipe_name);
-    //TODO: Query DB
-    //TODO: Render recipe page
-
 
     let app = Router::new()
                     .route("/", get(move || render_recipe_page(pool.clone())))

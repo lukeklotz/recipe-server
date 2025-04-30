@@ -138,15 +138,29 @@ async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::E
     Ok(())
 }
 
-pub async fn query_recipe(pool: &SqlitePool) -> Result<String, sqlx::Error> {
-    // Query one random recipe
-    let row = sqlx::query("SELECT name FROM recipes ORDER BY RANDOM() LIMIT 1")
+
+pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Error> {
+    let row = sqlx::query("SELECT id, name FROM recipes ORDER BY RANDOM() LIMIT 1")
         .fetch_one(pool)
         .await?;
 
-    // Extract the 'name' field from the row
+    let recipe_id: i64 = row.get("id");
     let recipe_name: String = row.get("name");
 
-    Ok(recipe_name)
+    let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
+        .bind(recipe_id)
+        .fetch_all(pool)
+        .await?;
+
+    let ingredients: Vec<String> = ingredient_rows
+        .iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect();
+
+    Ok(Recipe {
+        id: recipe_id,
+        title: recipe_name,
+        ingredients,
+    })
 }
 

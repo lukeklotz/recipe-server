@@ -4,14 +4,14 @@
 
 use sqlx::{
     migrate::MigrateDatabase, 
-    sqlite::SqliteQueryResult, 
+    //sqlite::SqliteQueryResult, 
     Sqlite, 
     SqlitePool,
     Row,
+    Error,
 };
 
-use std::io::Error;
-use rand::prelude::IndexedRandom;
+//use std::io::Error;
 use std::fs;
 use serde::Deserialize;
 
@@ -162,5 +162,28 @@ pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Erro
         title: recipe_name,
         ingredients,
     })
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RecipeNavigator {
+    pub direction: String,
+}
+
+pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator) -> Result<Recipe, Error> {
+    match nav.direction.as_str() {
+        "prev" => {
+            println!("prev");
+            query_random_recipe(pool).await
+        }
+        "next" => {
+            println!("next");
+            query_random_recipe(pool).await
+        }
+        "random" => {
+            println!("random");
+            query_random_recipe(pool).await
+        }
+        _ => Err(Error::RowNotFound),
+    }
 }
 

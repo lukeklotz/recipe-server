@@ -7,25 +7,38 @@ use askama::Template;
 
 use sqlx::{SqlitePool};
 
+//use serde::Deserialize;
+
 use axum::{
-    routing::get,
+    extract::{Form, State},
+    routing::{get, post},
     response,
     response::Html,
     Router,
 };
 
+async fn render_recipe_page(
+    State(pool): State<SqlitePool>, 
+    Form(data): Form<RecipeNavigator>) 
+    -> response::Html<String> {
 
-//TODO: render HTML from database instead of directly from struct
+    //TODO: query_recipe returns a string but is supposed to return a recipe struct
+    let recipe = query_recipe(&pool, data).await.unwrap();
 
+    println!("recipe: {:?}", recipe);
 
-async fn render_recipe_page(pool: SqlitePool) -> response::Html<String> {
-
-    let recipe = query_random_recipe(&pool).await.unwrap();
     let template = IndexTemplate::recipe(&recipe);
 
     Html(template.render().unwrap())
 }
 
+async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
+    
+    let recipe = query_random_recipe(&pool).await.unwrap();
+    let template = IndexTemplate::recipe(&recipe);
+
+    Html(template.render().unwrap())
+}
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error>{
@@ -39,11 +52,13 @@ async fn main() -> Result<(), sqlx::Error>{
 
     let recipe = recipe::get_recipe(); 
     recipe::insert(&pool, &recipe).await?;
+    
+    println!("here");
    
-
     let app = Router::new()
-                    .route("/", get(move || render_recipe_page(pool.clone())))
-                    .route("/other", get(|| async { "other, world!" }));
+        .route("/recipe", post(render_recipe_page))
+        .route("/", get(render_index))
+        .with_state(pool.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();

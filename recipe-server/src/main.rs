@@ -19,11 +19,10 @@ use axum::{
 
 async fn render_recipe_page(
     State(pool): State<SqlitePool>, 
-    Form(data): Form<RecipeNavigator>) 
+    Form(nav): Form<RecipeNavigator>) 
     -> response::Html<String> {
 
-    //TODO: query_recipe returns a string but is supposed to return a recipe struct
-    let recipe = query_recipe(&pool, data).await.unwrap();
+    let recipe = query_recipe(&pool, nav).await.unwrap();
 
     println!("recipe: {:?}", recipe);
 
@@ -43,17 +42,16 @@ async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error>{
 
-    let _result = recipe::create_db().await;
+    let was_created = recipe::create_db().await?;
 
-    // Create a connection pool
     let pool = SqlitePool::connect(recipe::DB_URL).await?;
 
-    recipe::create_tables(&pool).await?;
-
-    let recipe = recipe::get_recipe(); 
-    recipe::insert(&pool, &recipe).await?;
-    
-    println!("here");
+    if was_created {
+        println!("Populating db...");
+        recipe::create_tables(&pool).await?;
+        let recipes = recipe::get_recipes(); 
+        recipe::insert(&pool, &recipes).await?;
+    }
    
     let app = Router::new()
         .route("/recipe", post(render_recipe_page))

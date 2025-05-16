@@ -26,7 +26,7 @@ pub struct Recipe {
 
 
 // parses json into a vector of Recipe structs
-pub fn get_recipe() -> Vec<Recipe> {
+pub fn get_recipes() -> Vec<Recipe> {
 
     let path = "recipes.json";
 
@@ -54,19 +54,29 @@ pub fn get_recipe() -> Vec<Recipe> {
     recipes
 }
 
-pub async fn create_db() -> Result<(), sqlx::Error> {
+pub async fn create_db() -> Result<bool, sqlx::Error> {
 
-    if !Sqlite::database_exists(DB_URL).await.unwrap_or(false) {
-        println!("Creating database {}", DB_URL);
-        match Sqlite::create_database(DB_URL).await {
-            Ok(_) => println!("Create db success"),
-            Err(error) => panic!("error: {}", error),
+    match Sqlite::database_exists(DB_URL).await {
+
+        //db does not exist
+        Ok(false) => {
+            println!("Creating database {}", DB_URL);
+            Sqlite::create_database(DB_URL).await?;
+            println!("Create db success");
+            Ok(true) 
         }
-    } else {
-        println!("Database already exists");
-    }
 
-    Ok(())
+        //db does exist
+        Ok(true) => {
+            println!("Database already exists");
+            Ok(false)
+        }       
+
+        Err(e) => {
+            eprintln!("something terrible has just happened");
+            Err(e)
+        }
+    }
 }
 
 pub async fn create_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
@@ -121,6 +131,8 @@ async fn insert_recipe(pool: &SqlitePool, recipe: &Recipe) -> Result<(), sqlx::E
     .await?
     .get("id");
 
+    //println!("recipe_id at insert_recipe: {}", recipe_id);
+
     // Insert each ingredient
     for ingredient in &recipe.ingredients {
         sqlx::query(
@@ -146,6 +158,8 @@ pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Erro
 
     let recipe_id: i64 = row.get("id");
     let recipe_name: String = row.get("name");
+
+    //println!("recipe_id: {}", recipe_id);
 
     let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
         .bind(recipe_id)

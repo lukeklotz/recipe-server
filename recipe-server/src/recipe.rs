@@ -1,6 +1,7 @@
 //"https://dummyjson.com/recipes/{}, i"
 //"i" is used used to fetch random recipe
 //limit between 0 - 29
+use crate::IndexTemplate;
 
 use sqlx::{
     migrate::MigrateDatabase, 
@@ -159,7 +160,40 @@ pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Erro
     let recipe_id: i64 = row.get("id");
     let recipe_name: String = row.get("name");
 
-    //println!("recipe_id: {}", recipe_id);
+    let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
+        .bind(recipe_id)
+        .fetch_all(pool)
+        .await?;
+
+    let ingredients: Vec<String> = ingredient_rows
+        .iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect();
+
+    Ok(Recipe {
+        id: recipe_id,
+        title: recipe_name,
+        ingredients,
+    })
+}
+
+pub async fn query_next_recipe(pool: &SqlitePool, mut recipe_index: i64) -> Result<Recipe, sqlx::Error> {
+    let row = sqlx::query("SELECT id, name FROM recipes WHERE id > ? ORDER BY id ASC LIMIT 1")
+        .bind(recipe_index)
+        .fetch_optional(pool)
+        .await?;
+
+    let row = match row {
+        Some(row) => row,
+        None => {
+            sqlx::query("SELECT id, name FROM recipes ORDER BY id ASC LIMIT 1")
+                .fetch_one(pool)
+                .await?
+        }
+    };
+
+    let recipe_id: i64 = row.get("id");
+    let recipe_name: String = row.get("name");
 
     let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
         .bind(recipe_id)
@@ -178,20 +212,59 @@ pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Erro
     })
 }
 
+pub async fn query_prev_recipe(pool: &SqlitePool, recipe_index: i64) -> Result<Recipe, sqlx::Error> {
+    let row = sqlx::query("SELECT id, name FROM recipes WHERE id < ? ORDER BY id DESC LIMIT 1")
+        .bind(recipe_index)
+        .fetch_optional(pool)
+        .await?;
+
+    let row = match row {
+        Some(row) => row,
+        None => {
+            sqlx::query("SELECT id, name FROM recipes ORDER BY id DESC LIMIT 1")
+                .fetch_one(pool)
+                .await?
+        }
+    };
+
+    let recipe_id: i64 = row.get("id");
+    let recipe_name: String = row.get("name");
+
+    let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
+        .bind(recipe_id)
+        .fetch_all(pool)
+        .await?;
+
+    let ingredients: Vec<String> = ingredient_rows
+        .iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect();
+
+    Ok(Recipe {
+        id: recipe_id,
+        title: recipe_name,
+        ingredients,
+    })
+}
+
+//fn get_current_recipe_id()
+
 #[derive(Deserialize, Debug)]
 pub struct RecipeNavigator {
     pub direction: String,
+    pub current_id: Option<i64>
 }
 
-pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator) -> Result<Recipe, Error> {
+pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator, recipe_index: i64) -> Result<Recipe, Error> {
     match nav.direction.as_str() {
         "prev" => {
             println!("prev");
-            query_random_recipe(pool).await
+            query_prev_recipe(pool, recipe_index).await
         }
         "next" => {
             println!("next");
-            query_random_recipe(pool).await
+
+            query_next_recipe(pool, recipe_index).await
         }
         "random" => {
             println!("random");

@@ -22,10 +22,24 @@ async fn render_recipe_page(
     Form(nav): Form<RecipeNavigator>) 
     -> response::Html<String> {
 
-    let recipe = query_recipe(&pool, nav).await.unwrap();
+    let current_id = nav.current_id.unwrap_or(0);
 
+    println!("current id: {}", current_id);
+
+    let recipe = match nav.direction.as_str() {
+        "random" => query_random_recipe(&pool).await.unwrap(),
+        "next" | "prev" => {
+            if current_id == 0 {
+                query_random_recipe(&pool).await.unwrap()
+            } else {
+                query_recipe(&pool, nav, current_id).await.unwrap()
+            }
+        }
+        _ => {
+            query_random_recipe(&pool).await.unwrap()
+        }
+    };
     println!("recipe: {:?}", recipe);
-
     let template = IndexTemplate::recipe(&recipe);
 
     Html(template.render().unwrap())
@@ -38,6 +52,7 @@ async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
 
     Html(template.render().unwrap())
 }
+
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error>{
@@ -52,7 +67,7 @@ async fn main() -> Result<(), sqlx::Error>{
         let recipes = recipe::get_recipes(); 
         recipe::insert(&pool, &recipes).await?;
     }
-   
+
     let app = Router::new()
         .route("/recipe", post(render_recipe_page))
         .route("/", get(render_index))

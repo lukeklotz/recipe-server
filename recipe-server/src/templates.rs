@@ -16,4 +16,9 @@ impl<'a> IndexTemplate<'a> {
             stylesheet: "/style.css",
         }
     }
+
+    //TODO: trying to get the "currently displayed" id
+    pub fn get_current_recipe_id(&self) -> usize {
+        self.recipe.id as usize
+    }
 }

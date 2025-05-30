@@ -15,6 +15,7 @@
       </ul>
   </div>
   <form method="post" action="/recipe">
+    <input type="hidden" name="current_id" value="{{ recipe.id }}">
     <button type="submit" name="direction" value="prev">prev</button>
     <button type="submit" name="direction" value="random">random</button>
     <button type="submit" name="direction" value="next">next</button>

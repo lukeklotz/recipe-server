@@ -1,8 +1,3 @@
-//"https://dummyjson.com/recipes/{}, i"
-//"i" is used used to fetch random recipe
-//limit between 0 - 29
-use crate::IndexTemplate;
-
 use sqlx::{
     migrate::MigrateDatabase, 
     //sqlite::SqliteQueryResult, 

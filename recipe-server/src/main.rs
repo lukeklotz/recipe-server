@@ -4,21 +4,18 @@ mod templates;
 use recipe::*;
 use templates::*;
 use askama::Template;
-use utoipa::path;
 use sqlx::{SqlitePool};
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
     extract::{Form, Path, State},
     routing::{get, post},
-    response::{Html, Json, IntoResponse},
+    response::{Html, IntoResponse},
     http::StatusCode,
     Router,
 };
 
 //rest api functions
-
 #[utoipa::path(
     get,
     path = "/api/recipe/random",
@@ -51,10 +48,13 @@ pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
     )
 )]
 pub async fn api_id(State(pool): State<SqlitePool>, Path(current_id): Path<i64>) -> impl IntoResponse {
+
+    //get the currect recipe thats being displayed
     let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
 
     match recipe {
         Ok(recipe) => {
+            //create a template and render it
             let template = IndexTemplate::recipe(&recipe);
             Html(template.render().unwrap()).into_response()
         }
@@ -86,15 +86,23 @@ async fn render_recipe_page(
     State(pool): State<SqlitePool>, 
     Form(nav): Form<RecipeNavigator>) 
     -> Result<Html<String>, StatusCode>  {
-
+    
+    //When the default home page is loaded for the first time
+    //there is no ID associated with the nav component
+    //so this checks if thats the case and handles it later
+    //WARNING: This is hacky and not really correct, but works for now
     let current_id = nav.current_id.unwrap_or(0);
 
-    println!("current id: {}", current_id);
-
+    //nav.direction is assigned by html buttons
+    //current options are "random, next, prev"
     let recipe = match nav.direction.as_str() {
+
+        //call a query type based on the value of nav.direction
+        //query result assigned to recipe
         "random" => query_random_recipe(&pool).await.unwrap(),
         "next" | "prev" => {
             if current_id == 0 {
+                //this is whats triggered on the initial page load
                 query_random_recipe(&pool).await.unwrap()
             } else {
                 query_recipe(&pool, nav, current_id).await.unwrap()
@@ -104,18 +112,24 @@ async fn render_recipe_page(
             query_random_recipe(&pool).await.unwrap()
         }
     };
-    println!("recipe: {:?}", recipe);
+    //get our template from our recipe struct
     let template = IndexTemplate::recipe(&recipe);
 
+    //return the rendered template
     Ok(Html(template.render().unwrap()))
 }
 
-async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
+async fn render_index(State(pool): State<SqlitePool>) -> Result<Html<String>, StatusCode> {
+    //this is called on inital load 
+    //since theres no current index, we load a random one
+    let recipe = query_random_recipe(&pool).await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    let recipe = query_random_recipe(&pool).await.unwrap();
     let template = IndexTemplate::recipe(&recipe);
+    let html = template.render()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Html(template.render().unwrap())
+    Ok(Html(html))
 }
 //render functions end
 

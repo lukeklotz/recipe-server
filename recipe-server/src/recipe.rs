@@ -15,10 +15,11 @@ use sqlx::{
 //use std::io::Error;
 use std::fs;
 use serde::Deserialize;
+use serde::Serialize;
 
 pub const DB_URL: &str = "sqlite://sqlite.db";
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Recipe {
     pub id: i64,
     pub title: String,
@@ -177,7 +178,7 @@ pub async fn query_random_recipe(pool: &SqlitePool) -> Result<Recipe, sqlx::Erro
     })
 }
 
-pub async fn query_next_recipe(pool: &SqlitePool, mut recipe_index: i64) -> Result<Recipe, sqlx::Error> {
+pub async fn query_next_recipe(pool: &SqlitePool, recipe_index: i64) -> Result<Recipe, sqlx::Error> {
     let row = sqlx::query("SELECT id, name FROM recipes WHERE id > ? ORDER BY id ASC LIMIT 1")
         .bind(recipe_index)
         .fetch_optional(pool)
@@ -247,7 +248,36 @@ pub async fn query_prev_recipe(pool: &SqlitePool, recipe_index: i64) -> Result<R
     })
 }
 
-//fn get_current_recipe_id()
+pub async fn query_recipe_by_id(pool: &SqlitePool, id: i64) -> Result<Recipe, sqlx::Error> {
+    let row = sqlx::query("SELECT id, name FROM recipes WHERE id = ?")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
+
+    let row = match row {
+        Some(row) => row,
+        None => return Err(sqlx::Error::RowNotFound),
+    };
+    
+    let recipe_id: i64 = row.get("id");
+    let recipe_name: String = row.get("name");
+
+    let ingredient_rows = sqlx::query("SELECT name FROM ingredients WHERE recipe_id = ?")
+        .bind(recipe_id)
+        .fetch_all(pool)
+        .await?;
+
+    let ingredients: Vec<String> = ingredient_rows
+        .iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect();
+
+    Ok(Recipe {
+        id: recipe_id,
+        title: recipe_name,
+        ingredients,
+    })
+}
 
 #[derive(Deserialize, Debug)]
 pub struct RecipeNavigator {
@@ -263,7 +293,6 @@ pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator, recipe_index:
         }
         "next" => {
             println!("next");
-
             query_next_recipe(pool, recipe_index).await
         }
         "random" => {

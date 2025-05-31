@@ -7,20 +7,45 @@ use askama::Template;
 
 use sqlx::{SqlitePool};
 
-//use serde::Deserialize;
-
 use axum::{
-    extract::{Form, State},
+    extract::{Form, Path, State},
     routing::{get, post},
-    response,
-    response::Html,
+    response::{Html, Json, IntoResponse},
+    http::StatusCode,
     Router,
 };
 
+//rest api functions
+pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
+    let recipe = recipe::query_random_recipe(&pool).await;
+
+    match recipe {
+        Ok(recipe) => {
+            let template = IndexTemplate::recipe(&recipe);
+            Html(template.render().unwrap()).into_response()
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+pub async fn api_id(State(pool): State<SqlitePool>, Path(current_id): Path<i64>) -> impl IntoResponse {
+    let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
+
+    match recipe {
+        Ok(recipe) => {
+            let template = IndexTemplate::recipe(&recipe);
+            Html(template.render().unwrap()).into_response()
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+// rest api functions end
+
+//render functions
 async fn render_recipe_page(
     State(pool): State<SqlitePool>, 
     Form(nav): Form<RecipeNavigator>) 
-    -> response::Html<String> {
+    -> Result<Html<String>, StatusCode>  {
 
     let current_id = nav.current_id.unwrap_or(0);
 
@@ -42,7 +67,7 @@ async fn render_recipe_page(
     println!("recipe: {:?}", recipe);
     let template = IndexTemplate::recipe(&recipe);
 
-    Html(template.render().unwrap())
+    Ok(Html(template.render().unwrap()))
 }
 
 async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
@@ -52,7 +77,7 @@ async fn render_index(State(pool): State<SqlitePool>) -> Html<String> {
 
     Html(template.render().unwrap())
 }
-
+//render functions end
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error>{
@@ -69,8 +94,10 @@ async fn main() -> Result<(), sqlx::Error>{
     }
 
     let app = Router::new()
-        .route("/recipe", post(render_recipe_page))
         .route("/", get(render_index))
+        .route("/recipe", post(render_recipe_page))
+        .route("/api/recipe/random", get(api_random))
+        .route("/api/recipe/{id}", get(api_id))
         .with_state(pool.clone());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

@@ -16,10 +16,10 @@ use sqlx::{
 use std::fs;
 use serde::Deserialize;
 use serde::Serialize;
-
+use utoipa::ToSchema;
 pub const DB_URL: &str = "sqlite://sqlite.db";
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, ToSchema)]
 pub struct Recipe {
     pub id: i64,
     pub title: String,

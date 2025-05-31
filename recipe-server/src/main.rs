@@ -4,8 +4,10 @@ mod templates;
 use recipe::*;
 use templates::*;
 use askama::Template;
-
+use utoipa::path;
 use sqlx::{SqlitePool};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use axum::{
     extract::{Form, Path, State},
@@ -16,6 +18,15 @@ use axum::{
 };
 
 //rest api functions
+
+#[utoipa::path(
+    get,
+    path = "/api/recipe/random",
+    responses(
+        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 500, description = "Internal server error")
+    )
+)]
 pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
     let recipe = recipe::query_random_recipe(&pool).await;
 
@@ -28,6 +39,17 @@ pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/recipe/{id}",
+    responses(
+        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 404, description = "Recipe not found")
+    ),
+    params(
+        ("id" = i64, Path, description = "Recipe database ID")
+    )
+)]
 pub async fn api_id(State(pool): State<SqlitePool>, Path(current_id): Path<i64>) -> impl IntoResponse {
     let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
 
@@ -40,6 +62,24 @@ pub async fn api_id(State(pool): State<SqlitePool>, Path(current_id): Path<i64>)
     }
 }
 // rest api functions end
+
+// OpenAPI start
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        api_id,
+        api_random, 
+    ),
+    components(
+        schemas(Recipe)
+    ),
+    tags(
+        (name = "Recipes", description = "Recipe-related endpoints")
+    )
+)]
+
+pub struct ApiDoc;
+//Open API end
 
 //render functions
 async fn render_recipe_page(

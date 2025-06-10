@@ -1,12 +1,15 @@
 mod recipe;
 mod templates;
 
+use std::{net::SocketAddr, sync::Arc};
+use axum::Extension;
 use recipe::*;
 use templates::*;
 use askama::Template;
 use sqlx::{SqlitePool};
 use utoipa::OpenApi;
-
+use utoipa_swagger_ui::SwaggerUi;
+use utoipa::openapi::Server;
 use axum::{
     extract::{Form, Path, State},
     routing::{get, post},
@@ -14,6 +17,7 @@ use axum::{
     http::StatusCode,
     Router,
 };
+use tokio::net;
 
 //rest api functions
 #[utoipa::path(
@@ -24,7 +28,7 @@ use axum::{
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
+pub async fn api_random(Extension(pool): Extension<Arc<SqlitePool>>) -> impl IntoResponse {
     let recipe = recipe::query_random_recipe(&pool).await;
 
     match recipe {
@@ -47,7 +51,7 @@ pub async fn api_random(State(pool): State<SqlitePool>) -> impl IntoResponse {
         ("id" = i64, Path, description = "Recipe database ID")
     )
 )]
-pub async fn api_id(State(pool): State<SqlitePool>, Path(current_id): Path<i64>) -> impl IntoResponse {
+pub async fn api_id(Extension(pool): Extension<Arc<SqlitePool>>, Path(current_id): Path<i64>) -> impl IntoResponse {
 
     //get the currect recipe thats being displayed
     let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
@@ -83,7 +87,7 @@ pub struct ApiDoc;
 
 //render functions
 async fn render_recipe_page(
-    State(pool): State<SqlitePool>, 
+    Extension(pool): Extension<Arc<SqlitePool>>, 
     Form(nav): Form<RecipeNavigator>) 
     -> Result<Html<String>, StatusCode>  {
     
@@ -119,7 +123,7 @@ async fn render_recipe_page(
     Ok(Html(template.render().unwrap()))
 }
 
-async fn render_index(State(pool): State<SqlitePool>) -> Result<Html<String>, StatusCode> {
+async fn render_index(Extension(pool): Extension<Arc<SqlitePool>>) -> Result<Html<String>, StatusCode> {
     //this is called on inital load 
     //since theres no current index, we load a random one
     let recipe = query_random_recipe(&pool).await
@@ -134,11 +138,10 @@ async fn render_index(State(pool): State<SqlitePool>) -> Result<Html<String>, St
 //render functions end
 
 #[tokio::main]
-async fn main() -> Result<(), sqlx::Error>{
-
+async fn main() -> Result<(), sqlx::Error> {
     let was_created = recipe::create_db().await?;
-
-    let pool = SqlitePool::connect(recipe::DB_URL).await?;
+    let pre_arc_pool = SqlitePool::connect(recipe::DB_URL).await?;
+    let pool = Arc::new(pre_arc_pool);
 
     if was_created {
         println!("Populating db...");
@@ -147,15 +150,19 @@ async fn main() -> Result<(), sqlx::Error>{
         recipe::insert(&pool, &recipes).await?;
     }
 
+    let swagger_ui = SwaggerUi::new("/swagger-ui")
+        .url("/api-docs/openapi.json", ApiDoc::openapi());
+
     let app = Router::new()
         .route("/", get(render_index))
         .route("/recipe", post(render_recipe_page))
         .route("/api/recipe/random", get(api_random))
         .route("/api/recipe/{id}", get(api_id))
-        .with_state(pool.clone());
+        .merge(swagger_ui)
+        .layer(Extension(pool));
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = net::TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

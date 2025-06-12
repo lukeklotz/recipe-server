@@ -19,6 +19,24 @@ pub struct Recipe {
     pub ingredients: Vec<String>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct RecipeNavigator {
+
+    #[serde(default)]
+    pub direction: String,
+
+    #[serde(default)]
+    pub current_id: Option<i64>
+}
+
+impl Default for RecipeNavigator {
+    fn default() -> Self {
+        RecipeNavigator {
+            direction: "random".to_string(),
+            current_id: Some(1),
+        }
+    }
+}
 
 // parses json into a vector of Recipe structs
 pub fn get_recipes() -> Vec<Recipe> {
@@ -272,21 +290,16 @@ pub async fn query_recipe_by_id(pool: &SqlitePool, id: i64) -> Result<Recipe, sq
     })
 }
 
-#[derive(Deserialize, Debug)]
-pub struct RecipeNavigator {
-    pub direction: String,
-    pub current_id: Option<i64>
-}
 
-pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator, recipe_index: i64) -> Result<Recipe, Error> {
+pub async fn query_recipe(pool: &SqlitePool, nav: RecipeNavigator) -> Result<Recipe, Error> {
     match nav.direction.as_str() {
         "prev" => {
             println!("prev");
-            query_prev_recipe(pool, recipe_index).await
+            query_prev_recipe(pool, nav.current_id.unwrap()).await
         }
         "next" => {
             println!("next");
-            query_next_recipe(pool, recipe_index).await
+            query_next_recipe(pool, nav.current_id.unwrap()).await
         }
         "random" => {
             println!("random");

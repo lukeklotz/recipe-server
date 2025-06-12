@@ -13,5 +13,11 @@ serde_json = "1.0.140"
 rand = "0.9.1"
 utoipa = { version = "5.3.1", features = ["axum_extras"] }
 utoipa-swagger-ui = {version = "9.0.2", features = ["axum"]}
-tower-http = "0.6.6"
+tower-http = { version = "0.6.6", features = ["cors"] }
 hyper = { version = "1.6", features = ["full"] }
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8.2", features = ["csr", "ssr", "hydrate"] }
+leptos_axum = "0.8"
+leptos_config = "0.8.2"
+leptos_router = { version = "0.8.2", features = ["ssr"] }
+reqwasm = "0.5.0"

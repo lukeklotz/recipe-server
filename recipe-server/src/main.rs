@@ -1,25 +1,28 @@
 mod recipe;
 mod templates;
 
-use std::{net::SocketAddr, sync::Arc};
+use axum::extract::Query;
+use std::sync::Arc;
 use axum::Extension;
 use recipe::*;
 use templates::*;
 use askama::Template;
-use sqlx::{SqlitePool};
+use sqlx::SqlitePool;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use utoipa::openapi::Server;
 use axum::{
-    extract::{Form, Path, State},
+    extract::{Form, Path},
     routing::{get, post},
-    response::{Html, IntoResponse},
-    http::StatusCode,
+    response::{Html, IntoResponse, Json},
+    http::{StatusCode, HeaderMap, HeaderValue, Method},
     Router,
 };
+use tower_http::cors::{CorsLayer, Any};
 use tokio::net;
 
-//rest api functions
+// JSON API functions 
+//
+//GET random
 #[utoipa::path(
     get,
     path = "/api/recipe/random",
@@ -28,7 +31,100 @@ use tokio::net;
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn api_random(Extension(pool): Extension<Arc<SqlitePool>>) -> impl IntoResponse {
+pub async fn api_random_json(Extension(pool): Extension<Arc<SqlitePool>>) -> impl IntoResponse {
+    let recipe = recipe::query_random_recipe(&pool).await;
+
+    match recipe {
+        Ok(recipe) => Json(recipe).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+
+//GET next
+#[utoipa::path(
+    get,
+    path = "/api/recipe/next",
+    responses(
+        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 500, description = "Internal server error")
+    ),
+    params (
+        ("id" = i64, Query, description = "Recipe database ID")
+    )
+)]
+pub async fn api_next_json(Extension(pool): Extension<Arc<SqlitePool>>,
+                           Query(nav): Query<RecipeNavigator>) -> impl IntoResponse {
+    
+    let current_id = nav.current_id.unwrap_or(1);
+
+    println!("current_id: {}", current_id);
+
+    let recipe = recipe::query_recipe(&pool, nav).await;
+
+    match recipe {
+        Ok(recipe) => Json(recipe).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+//GET prev
+#[utoipa::path(
+    get,
+    path = "/api/recipe/prev",
+    responses(
+        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 500, description = "Internal server error")
+    ),
+    params (
+        ("id" = i64, Query, description = "Recipe database ID")
+    )
+)]
+pub async fn api_prev_json(Extension(pool): Extension<Arc<SqlitePool>>,
+                           Query(nav): Query<RecipeNavigator>) -> impl IntoResponse {
+    
+    let current_id = nav.current_id.unwrap_or(1);
+    println!("current_id: {}", current_id); //for debugging..
+
+    let recipe = recipe::query_recipe(&pool, nav).await;
+
+    match recipe {
+        Ok(recipe) => Json(recipe).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+//GET by id
+#[utoipa::path(
+    get,
+    path = "/api/recipe/{id}",
+    responses(
+        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 404, description = "Recipe not found")
+    ),
+    params(
+        ("id" = i64, Path, description = "Recipe database ID")
+    )
+)]
+pub async fn api_id_json(Extension(pool): Extension<Arc<SqlitePool>>, Path(current_id): Path<i64>) -> impl IntoResponse {
+    let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
+
+    match recipe {
+        Ok(recipe) => Json(recipe).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+// HTML API functions
+#[utoipa::path(
+    get,
+    path = "/api/recipe/random/html",
+    responses(
+        (status = 200, description = "Recipe found", body = String),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn api_random_html(Extension(pool): Extension<Arc<SqlitePool>>) -> impl IntoResponse {
     let recipe = recipe::query_random_recipe(&pool).await;
 
     match recipe {
@@ -42,37 +138,35 @@ pub async fn api_random(Extension(pool): Extension<Arc<SqlitePool>>) -> impl Int
 
 #[utoipa::path(
     get,
-    path = "/api/recipe/{id}",
+    path = "/api/recipe/{id}/html",
     responses(
-        (status = 200, description = "Recipe found", body = Recipe),
+        (status = 200, description = "Recipe found", body = String),
         (status = 404, description = "Recipe not found")
     ),
     params(
         ("id" = i64, Path, description = "Recipe database ID")
     )
 )]
-pub async fn api_id(Extension(pool): Extension<Arc<SqlitePool>>, Path(current_id): Path<i64>) -> impl IntoResponse {
-
-    //get the currect recipe thats being displayed
+pub async fn api_id_html(Extension(pool): Extension<Arc<SqlitePool>>, Path(current_id): Path<i64>) -> impl IntoResponse {
     let recipe = recipe::query_recipe_by_id(&pool, current_id).await;
 
     match recipe {
         Ok(recipe) => {
-            //create a template and render it
             let template = IndexTemplate::recipe(&recipe);
             Html(template.render().unwrap()).into_response()
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
-// rest api functions end
 
-// OpenAPI start
+// OpenAPI documentation
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        api_id,
-        api_random, 
+        api_id_json,
+        api_random_json,
+        api_id_html,
+        api_random_html,
     ),
     components(
         schemas(Recipe)
@@ -81,51 +175,36 @@ pub async fn api_id(Extension(pool): Extension<Arc<SqlitePool>>, Path(current_id
         (name = "Recipes", description = "Recipe-related endpoints")
     )
 )]
-
 pub struct ApiDoc;
-//Open API end
 
-//render functions
+// Render functions for existing web interface
 async fn render_recipe_page(
     Extension(pool): Extension<Arc<SqlitePool>>, 
     Form(nav): Form<RecipeNavigator>) 
     -> Result<Html<String>, StatusCode>  {
     
-    //When the default home page is loaded for the first time
-    //there is no ID associated with the nav component
-    //so this checks if thats the case and handles it later
-    //WARNING: This is hacky and not really correct, but works for now
+    //this is really bad but oh well
     let current_id = nav.current_id.unwrap_or(0);
 
-    //nav.direction is assigned by html buttons
-    //current options are "random, next, prev"
     let recipe = match nav.direction.as_str() {
-
-        //call a query type based on the value of nav.direction
-        //query result assigned to recipe
         "random" => query_random_recipe(&pool).await.unwrap(),
         "next" | "prev" => {
             if current_id == 0 {
-                //this is whats triggered on the initial page load
                 query_random_recipe(&pool).await.unwrap()
             } else {
-                query_recipe(&pool, nav, current_id).await.unwrap()
+                query_recipe(&pool, nav).await.unwrap()
             }
         }
         _ => {
             query_random_recipe(&pool).await.unwrap()
         }
     };
-    //get our template from our recipe struct
-    let template = IndexTemplate::recipe(&recipe);
 
-    //return the rendered template
+    let template = IndexTemplate::recipe(&recipe);
     Ok(Html(template.render().unwrap()))
 }
 
 async fn render_index(Extension(pool): Extension<Arc<SqlitePool>>) -> Result<Html<String>, StatusCode> {
-    //this is called on inital load 
-    //since theres no current index, we load a random one
     let recipe = query_random_recipe(&pool).await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
@@ -135,7 +214,6 @@ async fn render_index(Extension(pool): Extension<Arc<SqlitePool>>) -> Result<Htm
 
     Ok(Html(html))
 }
-//render functions end
 
 #[tokio::main]
 async fn main() -> Result<(), sqlx::Error> {
@@ -153,14 +231,35 @@ async fn main() -> Result<(), sqlx::Error> {
     let swagger_ui = SwaggerUi::new("/swagger-ui")
         .url("/api-docs/openapi.json", ApiDoc::openapi());
 
+    // Configure CORS 
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:8080".parse::<HeaderValue>().unwrap()) 
+        .allow_origin("http://127.0.0.1:8080".parse::<HeaderValue>().unwrap())
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(Any);
+
     let app = Router::new()
+        // Existing HTML routes
         .route("/", get(render_index))
         .route("/recipe", post(render_recipe_page))
-        .route("/api/recipe/random", get(api_random))
-        .route("/api/recipe/{id}", get(api_id))
+        
+        // JSON API routes Leptos frontend
+        .route("/api/recipe/random", get(api_random_json))
+        .route("/api/recipe/next", get(api_next_json))
+        .route("/api/recipe/prev", get(api_prev_json))
+        .route("/api/recipe/{id}", get(api_id_json))
+        
+        // HTML API routes mostly for testing
+        //.route("/api/recipe/random/html", get(api_random_html))
+        //.route("/api/recipe/{id}/html", get(api_id_html))
+        
         .merge(swagger_ui)
-        .layer(Extension(pool));
+        .layer(Extension(pool))
+        .layer(cors); 
 
+    console_error_panic_hook::set_once();
+
+    println!("Server starting on http://0.0.0.0:3000");
     let listener = net::TcpListener::bind("0.0.0.0:3000").await?;
     axum::serve(listener, app).await?;
 
